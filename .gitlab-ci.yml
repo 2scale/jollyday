@@ -1,0 +1,36 @@
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN -Dorg.slf4j.simpleLogger.showDateTime=true -Djava.awt.headless=true"
+  MAVEN_CLI_OPTS: "-s $CI_PROJECT_DIR/ci_settings.xml --batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true"
+
+build:
+  stage: build
+  image: registry.2scale.net/images/maven:3-openjdk-17
+  cache:
+    paths:
+      - .m2/repository
+    policy: pull-push
+  script:
+    - mvn $MAVEN_CLI_OPTS verify
+  artifacts:
+    reports:
+      junit:
+        - target/surefire-reports/TEST-*.xml
+  variables:
+    # overriding default proxy config in application-test.properties
+    HTTPCLIENT_PROXY_HOST: 10.10.22.254
+    HTTPCLIENT_PROXY_PORT: 3128
+
+deploy:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^.+$/
+      variables:
+        REVISION: "$CI_COMMIT_TAG"
+    - when: never
+  image: registry.2scale.net/images/maven:3-openjdk-17
+  cache:
+    paths:
+      - .m2/repository
+    policy: pull
+  script:
+    - mvn $MAVEN_CLI_OPTS -DskipTests -Drevision=$REVISION deploy
